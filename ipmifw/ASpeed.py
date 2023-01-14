@@ -9,8 +9,17 @@ class ASpeed:
 	def parse(self, ipmifw, extract, config):
 		footer = ipmifw[0x01fc0000:]
 		imagenum = 1
+
+		# search img list
+		imglist = re.findall("\[img\]: ([0-9a-z]+) ([0-9a-z]+) ([0-9a-z]+) ([0-9a-z\-_.]+)", footer)
+
+		if len(imglist) == 0:
+			print "No images list found, maybe this is a direct flash dump"
+			print "reading image list from config file"			
+
+
 		# There's a nice handy block at the end of the file that gives information about all the embedded images!
-		for (imagestart, length, checksum, filename) in re.findall("\[img\]: ([0-9a-z]+) ([0-9a-z]+) ([0-9a-z]+) ([0-9a-z\-_.]+)", footer):
+		for (imagestart, length, checksum, filename) in imglist:
 			imagestart = int(imagestart,16)
 			length = int(length,16)
 			checksum = int(checksum,16)
@@ -44,9 +53,7 @@ class ASpeed:
 		for imageFooter in re.findall("ATENs_FW(.{20})",ipmifw,re.DOTALL):
 
 			(rev1, rev2, rootfs_crc, rootfs_len, fwtag1, webfs_crc, webfs_len, fwtag2) = struct.unpack("<bb4s4sb4s4sb", imageFooter)
-			if fwtag1 != 0x71 or fwtag2 != 0x17:
-				print "Error matching footer tags"
-			else:
+			if fwtag1 == 0x71 and fwtag2 == 0x17:
 				len2 = config.get('image_2', 'length')
 				crc2 = config.get('image_2', 'checksum')
 				len4 = config.get('image_4', 'length')
@@ -57,6 +64,11 @@ class ASpeed:
 					print "Web_fs image info does not match"
 				else:
 					print "Footer OK, rev: %x.%x" % (rev1, rev2)
+			elif fwtag1 == -1 and fwtag2==-1:
+				print "Footer version 1/2 OK, rev: %x.%x" % (rev1, rev2)
+			else:
+				print "Error matching footer tags"
+
 
 			config.set('global', 'major_version', rev1)
 			config.set('global', 'minor_version', rev2)

@@ -23,6 +23,7 @@ type=unknown
 [images]
 """
 
+
 config = ConfigParser()
 config.readfp(io.BytesIO(default_ini))
 
@@ -39,24 +40,34 @@ except OSError:
 print "Read %i bytes" % len(ipmifw)
 
 fwtype = 'unknown'
-if len(ipmifw) > 0x01fc0000:
-	if ipmifw[0x01fc0000:0x01fc0005] == '[img]':
-		fwtype = 'aspeed'
 
+# Check if this is an winbond image
+bootloader = ipmifw[:64040]
+bootloader_md5 = hashlib.md5(bootloader).hexdigest()
+
+if bootloader_md5 == "166162c6c9f21d7a710dfd62a3452684" :
+	print "Bootloader md5 matches winbond, this parser will probably work!"
+	fwtype = 'winbond'
+# else:
+# 	print "Warning: bootloader (first 64040 bytes of file) md5 doesn't match.  This parser may not work with a different bootloader"
+# 	print "Expected 166162c6c9f21d7a710dfd62a3452684, got %s" % bootloader_md5
+
+# Check if this is an aspeed image
 if fwtype == 'unknown':
-	bootloader = ipmifw[:64040]
-	bootloader_md5 = hashlib.md5(bootloader).hexdigest()
+	if len(ipmifw) > 0x01fc0000:
+		if ipmifw[0x01fc0000:0x01fc0005] == '[img]':
+			fwtype = 'aspeed'
+			print "Detected aspeed image"
+		
+		else:
+			print "Unknown image, checking if this is an encrypted aspeed image"
+			
 
-	if bootloader_md5 != "166162c6c9f21d7a710dfd62a3452684":
-		print "Warning: bootloader (first 64040 bytes of file) md5 doesn't match.  This parser may not work with a different bootloader"
-		print "Expected 166162c6c9f21d7a710dfd62a3452684, got %s" % bootloader_md5
-	else:
-		print "Bootloader md5 matches, this parser will probably work!"
-		fwtype = 'winbond'
+fwtype = 'aspeed'
 
-	if args.extract:
-		print "Dumping bootloader to data/bootloader.bin"
-		with open('data/bootloader.bin','w') as f:
+if args.extract:
+	print "Dumping bootloader to data/bootloader.bin"
+	with open('data/bootloader.bin','w') as f:
 			f.write(bootloader)
 
 config.set('global', 'type', fwtype)
